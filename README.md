@@ -18,12 +18,14 @@
 ```text
 fashion-mnist-mlp-optimization/
 ├── README.md                    # 프로젝트 개요 및 공통 사용 규칙
-├── EXPERIMENT_PLAN.md           # 상세 실험 설계 및 역할 분담
+├── docs/
+│   ├── 01_mlp_architecture_experiment.md # MLP 구조 실험 계획
+│   └── parameter.md             # 모델 및 학습 파라미터 참고
 ├── requirements.txt             # Python 의존성
 ├── common/                      # 교재 공식 신경망 구현
 ├── data/                        # Fashion-MNIST
 └── experiments/
-    ├── 00_baseline.py           # 모든 실험의 출발점
+    ├── architecture_experiment_base.py # 구조 실험 공통 로직
     ├── A01_*.py                 # A: 신경망 구조 실험
     ├── B01_*.py                 # B: 학습 알고리즘 실험
     └── C01_*.py                 # C: 일반화 기법 실험
