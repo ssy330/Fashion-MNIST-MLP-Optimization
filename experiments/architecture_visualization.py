@@ -16,6 +16,10 @@ from matplotlib.ticker import PercentFormatter
 ACCURACY_FIELD = "best_model_val_acc"
 
 
+def _experiment_name(summary_path: Path) -> str:
+    return summary_path.stem.removesuffix("_summary")
+
+
 def _load_results(summary_path: Path) -> list[dict[str, str]]:
     with summary_path.open("r", newline="", encoding="utf-8") as file:
         return list(csv.DictReader(file))
@@ -44,6 +48,7 @@ def plot_width_depth(summary_path: Path) -> list[Path]:
     widths = sorted({width for width, _ in results})
     depths = sorted({depth for _, depth in results})
     output_dir = summary_path.parent
+    experiment_name = _experiment_name(summary_path)
 
     plt.figure(figsize=(8, 5))
     for depth in depths:
@@ -55,7 +60,7 @@ def plot_width_depth(summary_path: Path) -> list[Path]:
     plt.xlabel("Hidden Layer Width")
     plt.title("Validation Accuracy by Width")
     plt.legend(title="Hidden Layers")
-    width_path = output_dir / "width_vs_accuracy.png"
+    width_path = output_dir / f"{experiment_name}_width_vs_accuracy.png"
     _finish_plot(width_path)
 
     plt.figure(figsize=(8, 5))
@@ -67,7 +72,7 @@ def plot_width_depth(summary_path: Path) -> list[Path]:
     plt.xlabel("Hidden Layer Depth")
     plt.title("Validation Accuracy by Depth")
     plt.legend(title="Width", ncol=2)
-    depth_path = output_dir / "depth_vs_accuracy.png"
+    depth_path = output_dir / f"{experiment_name}_depth_vs_accuracy.png"
     _finish_plot(depth_path)
 
     return [width_path, depth_path]
@@ -96,7 +101,11 @@ def plot_budget_depth(summary_path: Path) -> Path:
     plt.xlabel("Hidden Layer Depth")
     plt.title("Validation Accuracy by Depth and Parameter Budget")
     plt.legend(title="Parameter Budget")
-    output_path = summary_path.parent / "budget_depth_accuracy.png"
+    experiment_name = _experiment_name(summary_path)
+    output_path = (
+        summary_path.parent
+        / f"{experiment_name}_budget_depth_accuracy.png"
+    )
     _finish_plot(output_path)
 
     return output_path
@@ -152,7 +161,11 @@ def plot_neuron_layout(summary_path: Path) -> Path:
     plt.xlabel("Neuron Layout")
     plt.title("Validation Accuracy by Neuron Layout")
     plt.legend(ncol=2)
-    output_path = summary_path.parent / "neuron_layout_accuracy.png"
+    experiment_name = _experiment_name(summary_path)
+    output_path = (
+        summary_path.parent
+        / f"{experiment_name}_neuron_layout_accuracy.png"
+    )
     _finish_plot(output_path)
 
     return output_path

@@ -8,33 +8,39 @@
 
 - 데이터: Fashion-MNIST (28×28 흑백 이미지, 10개 클래스, train 60,000장 / test 10,000장)
 - 범위: 교재 **4, 5, 6장**에 소개된 방법만 사용; **6층 이하 신경망**
-- 실험: 구조 결정 비교 실험, 수동 탐색 이후 **Randomized Search 필수**
-- 데이터 사용: 학습·튜닝 과정에서는 학습/검증 데이터만 사용하고 **테스트 데이터는 최종 평가에만 사용**
-- 최종 제출: 팀별 최선의 모델 1개, 코드·PPT, Competition에서 실행 가능한 `network_Team{번호}.pkl` (정확한 파일명·실행 형식은 수업 공지에 맞춤)
-- 팀원 **전원 발표**
+- 실험: 구조 결정 비교 실험, **Randomized Search** 등
+
 
 ## 저장소 구성
 
 ```text
 fashion-mnist-mlp-optimization/
-├── README.md                    # 프로젝트 개요 및 공통 사용 규칙
-├── docs/
-│   ├── 01_mlp_architecture_experiment.md # MLP 구조 실험 계획
-│   └── parameter.md             # 모델 및 학습 파라미터 참고
-├── requirements.txt             # Python 의존성
 ├── common/                      # 교재 공식 신경망 구현
 ├── data/                        # Fashion-MNIST
-└── experiments/
-    ├── 00_random_search.py          # 하이퍼파라미터 Random Search
-    ├── architecture_experiment_base.py # 구조 실험 공통 로직
-    ├── A01_*.py                 # A: 신경망 구조 실험
-    ├── B01_*.py                 # B: 학습 알고리즘 실험
-    └── C01_*.py                 # C: 일반화 기법 실험
+├── docs/
+│   ├── 00_random_search_experiment.md # Random Search 실험
+│   ├── 01_mlp_architecture_experiment.md # MLP 구조 실험
+│   └── parameter.md             # 모델 및 학습 파라미터 참고
+├── experiments/
+│   ├── 00_random_search.py      # 하이퍼파라미터 Random Search
+│   ├── 01A_width_depth.py       # 너비·깊이 구조 실험
+│   ├── 01B_parameter_budget_depth.py # 파라미터 예산·깊이 실험
+│   ├── 01C_neuron_layout.py     # 뉴런 배치 형태 실험
+│   └── architecture_experiment_base.py # 구조 실험 공통 로직
+├── results/
+    ├── 00_random_search/
+    │   ├── 00_random_search_summary.csv
+    │   └── runs/                # 시행별 history, best model, checkpoint
+    └── 01C_neuron_layout/
+        ├── 01C_neuron_layout_summary.csv
+        ├── 01C_neuron_layout_neuron_layout_accuracy.png
+        └── runs/                # 구조별 history, best model, checkpoint
+├── README.md                    # 프로젝트 개요 및 공통 사용 규칙
+└── requirements.txt             # Python 의존성
 ```
 
 ## 참고 자료
 
-- 과제 안내: 수업에서 배포한 「우리들의 신경망 모델」(2026 신경망 팀플)
 - [《밑바닥부터 시작하는 딥러닝 1》 한국어 예제 코드](https://github.com/WegraLee/deep-learning-from-scratch)
 - [원서 공식 예제 코드](https://github.com/oreilly-japan/deep-learning-from-scratch)
 - [Fashion-MNIST 공식 GitHub](https://github.com/zalandoresearch/fashion-mnist)

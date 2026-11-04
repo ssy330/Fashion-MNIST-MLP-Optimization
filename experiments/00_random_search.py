@@ -344,6 +344,8 @@ def run_random_search() -> None:
     configurations = sample_configurations()
     result_dir = base.RESULTS_DIR / EXPERIMENT_NAME
     result_dir.mkdir(parents=True, exist_ok=True)
+    run_dir = result_dir / "runs"
+    run_dir.mkdir(exist_ok=True)
     summary_path = result_dir / f"{EXPERIMENT_NAME}_summary.csv"
     summary_fields = [
         "run_id", "hidden_sizes", "activation", "weight_init",
@@ -376,9 +378,9 @@ def run_random_search() -> None:
 
     for index, configuration in enumerate(configurations, start=1):
         run_id = configuration["run_id"]
-        history_path = result_dir / f"{run_id}_history.csv"
-        model_path = result_dir / f"{run_id}_best.pkl"
-        checkpoint_path = result_dir / f"{run_id}_checkpoint.pkl"
+        history_path = run_dir / f"{run_id}_history.csv"
+        model_path = run_dir / f"{run_id}_best.pkl"
+        checkpoint_path = run_dir / f"{run_id}_checkpoint.pkl"
 
         print(f"\n[{index}/{len(configurations)}] {run_id}")
         if (

@@ -55,6 +55,7 @@ VALIDATION_SIZE = 10000
 PATIENCE = 10
 MIN_DELTA = 0.001
 MONITOR = "val_loss"
+MAX_TRAINING_TIME_SEC_PER_RUN = 500
 
 
 # ============================================================
@@ -187,68 +188,89 @@ def train_model(
     run_id: str,
     hidden_sizes: list[int],
     dataset: tuple,
-):
-
-    # 모델마다 시드 재설정
-    np.random.seed(SEED)
+    checkpoint_path: Path,
+) -> tuple[dict | None, list[dict], bytes]:
 
     x_train, y_train, x_valid, y_valid = dataset
-
-    # --------------------------------------------------------
-    # 6-1. Network 생성
-    # --------------------------------------------------------
-
-    network = MultiLayerNetExtend(
-        input_size=INPUT_SIZE,
-        hidden_size_list=hidden_sizes,
-        output_size=OUTPUT_SIZE,
-        activation=ACTIVATION,
-        weight_init_std=WEIGHT_INIT,
-        weight_decay_lambda=WEIGHT_DECAY,
-        use_dropout=USE_DROPOUT,
-        use_batchnorm=USE_BATCHNORM,
-    )
-
-    num_params = count_parameters(network)
-
-    # --------------------------------------------------------
-    # 6-2. Trainer 생성
-    # --------------------------------------------------------
-
-    trainer = Trainer(
-        network=network,
-        x_train=x_train,
-        t_train=y_train,
-        x_test=x_valid,
-        t_test=y_valid,
-        epochs=EPOCHS,
-        mini_batch_size=BATCH_SIZE,
-        optimizer=OPTIMIZER,
-        optimizer_param=OPTIMIZER_PARAM,
-        evaluate_sample_num_per_epoch=None,
-        verbose=False,
-    )
-
     iterations_per_epoch = int(
         np.ceil(len(y_train) / BATCH_SIZE)
     )
 
-    # --------------------------------------------------------
-    # 6-3. 학습 기록 및 Early Stopping 초기화
-    # --------------------------------------------------------
+    if checkpoint_path.exists():
+        with checkpoint_path.open("rb") as file:
+            checkpoint = pickle.load(file)
 
-    history = []
+        if checkpoint["hidden_sizes"] != hidden_sizes:
+            raise ValueError(f"Checkpoint structure mismatch: {run_id}")
 
-    best_val_loss = float("inf")
-    best_loss_epoch = 0
-    best_model_val_acc = 0.0
-    best_network_bytes = None
+        network = checkpoint["network"]
+        trainer = Trainer(
+            network=network,
+            x_train=x_train,
+            t_train=y_train,
+            x_test=x_valid,
+            t_test=y_valid,
+            epochs=EPOCHS,
+            mini_batch_size=BATCH_SIZE,
+            optimizer=OPTIMIZER,
+            optimizer_param=OPTIMIZER_PARAM,
+            evaluate_sample_num_per_epoch=None,
+            verbose=False,
+        )
+        trainer.optimizer = checkpoint["optimizer"]
+        trainer.current_iter = checkpoint["total_iterations"]
+        np.random.set_state(checkpoint["rng_state"])
 
-    best_val_acc = -1.0
-    best_acc_epoch = 0
+        start_epoch = checkpoint["epoch"] + 1
+        history = checkpoint["history"]
+        best_val_loss = checkpoint["best_val_loss"]
+        best_loss_epoch = checkpoint["best_loss_epoch"]
+        best_model_val_acc = checkpoint["best_model_val_acc"]
+        best_network_bytes = checkpoint["best_network_bytes"]
+        best_val_acc = checkpoint["best_val_acc"]
+        best_acc_epoch = checkpoint["best_acc_epoch"]
+        wait = checkpoint["wait"]
+        total_iterations = checkpoint["total_iterations"]
+        accumulated_training_time = checkpoint["training_time_sec"]
+        print(f"Resuming {run_id} from Epoch {start_epoch}.")
+    else:
+        np.random.seed(SEED)
+        network = MultiLayerNetExtend(
+            input_size=INPUT_SIZE,
+            hidden_size_list=hidden_sizes,
+            output_size=OUTPUT_SIZE,
+            activation=ACTIVATION,
+            weight_init_std=WEIGHT_INIT,
+            weight_decay_lambda=WEIGHT_DECAY,
+            use_dropout=USE_DROPOUT,
+            use_batchnorm=USE_BATCHNORM,
+        )
+        trainer = Trainer(
+            network=network,
+            x_train=x_train,
+            t_train=y_train,
+            x_test=x_valid,
+            t_test=y_valid,
+            epochs=EPOCHS,
+            mini_batch_size=BATCH_SIZE,
+            optimizer=OPTIMIZER,
+            optimizer_param=OPTIMIZER_PARAM,
+            evaluate_sample_num_per_epoch=None,
+            verbose=False,
+        )
+        start_epoch = 1
+        history = []
+        best_val_loss = float("inf")
+        best_loss_epoch = 0
+        best_model_val_acc = 0.0
+        best_network_bytes = b""
+        best_val_acc = -1.0
+        best_acc_epoch = 0
+        wait = 0
+        total_iterations = 0
+        accumulated_training_time = 0.0
 
-    wait = 0
-    total_iterations = 0
+    num_params = count_parameters(network)
     stopped_early = False
 
     print(f"\n========== {run_id} ==========")
@@ -267,7 +289,7 @@ def train_model(
     # 6-4. Epoch 단위 학습
     # --------------------------------------------------------
 
-    for epoch in range(1, EPOCHS + 1):
+    for epoch in range(start_epoch, EPOCHS + 1):
 
         # 한 Epoch에 해당하는 학습 수행
         for _ in range(iterations_per_epoch):
@@ -339,6 +361,34 @@ def train_model(
             f"Wait: {wait}/{PATIENCE}"
         )
 
+        elapsed_time = time.perf_counter() - start_time
+        if elapsed_time >= MAX_TRAINING_TIME_SEC_PER_RUN:
+            checkpoint = {
+                "hidden_sizes": hidden_sizes,
+                "network": network,
+                "optimizer": trainer.optimizer,
+                "epoch": epoch,
+                "history": history,
+                "best_val_loss": best_val_loss,
+                "best_loss_epoch": best_loss_epoch,
+                "best_model_val_acc": best_model_val_acc,
+                "best_network_bytes": best_network_bytes,
+                "best_val_acc": best_val_acc,
+                "best_acc_epoch": best_acc_epoch,
+                "wait": wait,
+                "total_iterations": total_iterations,
+                "training_time_sec": accumulated_training_time + elapsed_time,
+                "rng_state": np.random.get_state(),
+            }
+            with checkpoint_path.open("wb") as file:
+                pickle.dump(checkpoint, file, protocol=pickle.HIGHEST_PROTOCOL)
+
+            print(
+                f"Time limit reached after Epoch {epoch}; "
+                f"checkpoint saved to {checkpoint_path.name}."
+            )
+            return None, history, b""
+
         # 조기 종료 조건
         if wait >= PATIENCE:
 
@@ -351,7 +401,9 @@ def train_model(
 
             break
 
-    training_time = time.perf_counter() - start_time
+    training_time = accumulated_training_time + (
+        time.perf_counter() - start_time
+    )
 
     # --------------------------------------------------------
     # 6-8. 최종 결과 정리
@@ -396,6 +448,8 @@ def run_experiment(
 
     result_dir = RESULTS_DIR / experiment_name
     result_dir.mkdir(parents=True, exist_ok=True)
+    run_dir = result_dir / "runs"
+    run_dir.mkdir(exist_ok=True)
 
     # 실험별 통합 Summary 파일
     summary_path = (
@@ -470,16 +524,19 @@ def run_experiment(
     ):
 
         structure_name = "-".join(map(str, hidden_sizes))
+        experiment_prefix = experiment_name.split("_", maxsplit=1)[0]
+        artifact_name = f"{experiment_prefix}_{structure_name}"
 
         history_path = (
-            result_dir
-            / f"{experiment_name}_{structure_name}_history.csv"
+            run_dir
+            / f"{artifact_name}_history.csv"
         )
 
         model_path = (
-            result_dir
-            / f"{experiment_name}_{structure_name}_best.pkl"
+            run_dir
+            / f"{artifact_name}_best.pkl"
         )
+        checkpoint_path = run_dir / f"{artifact_name}_checkpoint.pkl"
 
         print(
             f"\n[{index}/{len(configurations)}] "
@@ -503,7 +560,12 @@ def run_experiment(
             run_id=run_id,
             hidden_sizes=hidden_sizes,
             dataset=dataset,
+            checkpoint_path=checkpoint_path,
         )
+
+        if summary is None:
+            print(f"PAUSE: {run_id} (resume on the next execution)")
+            continue
 
         # ----------------------------------------------------
         # 7-4. History 저장
@@ -527,6 +589,9 @@ def run_experiment(
 
         with model_path.open("wb") as f:
             f.write(best_network_bytes)
+
+        if checkpoint_path.exists():
+            checkpoint_path.unlink()
 
         # ----------------------------------------------------
         # 7-6. 통합 Summary 갱신
