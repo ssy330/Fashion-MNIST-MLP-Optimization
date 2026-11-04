@@ -25,6 +25,7 @@ fashion-mnist-mlp-optimization/
 ├── common/                      # 교재 공식 신경망 구현
 ├── data/                        # Fashion-MNIST
 └── experiments/
+    ├── 00_random_search.py          # 하이퍼파라미터 Random Search
     ├── architecture_experiment_base.py # 구조 실험 공통 로직
     ├── A01_*.py                 # A: 신경망 구조 실험
     ├── B01_*.py                 # B: 학습 알고리즘 실험
