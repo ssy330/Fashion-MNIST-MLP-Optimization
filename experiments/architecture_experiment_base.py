@@ -6,6 +6,7 @@ import gzip
 import pickle
 import sys
 import time
+import argparse
 from pathlib import Path
 
 import numpy as np
@@ -55,7 +56,8 @@ VALIDATION_SIZE = 10000
 PATIENCE = 10
 MIN_DELTA = 0.001
 MONITOR = "val_loss"
-MAX_TRAINING_TIME_SEC_PER_RUN = 500
+# Set to None to run each configuration until early stopping or EPOCHS.
+MAX_TRAINING_TIME_SEC_PER_RUN: float | None = None
 
 
 # ============================================================
@@ -189,6 +191,7 @@ def train_model(
     hidden_sizes: list[int],
     dataset: tuple,
     checkpoint_path: Path,
+    max_training_time_sec: float | None,
 ) -> tuple[dict | None, list[dict], bytes]:
 
     x_train, y_train, x_valid, y_valid = dataset
@@ -362,7 +365,10 @@ def train_model(
         )
 
         elapsed_time = time.perf_counter() - start_time
-        if elapsed_time >= MAX_TRAINING_TIME_SEC_PER_RUN:
+        if (
+            max_training_time_sec is not None
+            and elapsed_time >= max_training_time_sec
+        ):
             checkpoint = {
                 "hidden_sizes": hidden_sizes,
                 "network": network,
@@ -441,10 +447,31 @@ def train_model(
 # 6. 모든 실험 조합 실행 및 저장
 # ============================================================
 
+def parse_max_training_time_argument() -> float | None:
+    """Read the optional per-configuration time limit from the command line."""
+    parser = argparse.ArgumentParser(
+        description="Run a Fashion-MNIST architecture experiment."
+    )
+    parser.add_argument(
+        "--max-training-time",
+        type=float,
+        default=MAX_TRAINING_TIME_SEC_PER_RUN,
+        metavar="SECONDS",
+        help=(
+            "Maximum seconds per configuration before saving a checkpoint "
+            "and moving on. Omit this option to run without a time limit."
+        ),
+    )
+    return parser.parse_args().max_training_time
+
+
 def run_experiment(
     experiment_name: str,
     configurations: list[tuple[str, list[int]]],
+    max_training_time_sec: float | None = MAX_TRAINING_TIME_SEC_PER_RUN,
 ) -> Path:
+    if max_training_time_sec is not None and max_training_time_sec <= 0:
+        raise ValueError("max_training_time_sec must be positive or None")
 
     result_dir = RESULTS_DIR / experiment_name
     result_dir.mkdir(parents=True, exist_ok=True)
@@ -513,6 +540,13 @@ def run_experiment(
     print(f"Total configurations: {len(configurations)}")
     print(f"Train samples: {len(dataset[0]):,}")
     print(f"Validation samples: {len(dataset[2]):,}")
+    if max_training_time_sec is None:
+        print("Per-configuration time limit: none")
+    else:
+        print(
+            "Per-configuration time limit: "
+            f"{max_training_time_sec:g} seconds"
+        )
     print("================================")
 
     # --------------------------------------------------------
@@ -561,6 +595,7 @@ def run_experiment(
             hidden_sizes=hidden_sizes,
             dataset=dataset,
             checkpoint_path=checkpoint_path,
+            max_training_time_sec=max_training_time_sec,
         )
 
         if summary is None:

@@ -1,6 +1,9 @@
 from pathlib import Path
 
-from architecture_experiment_base import run_experiment
+from architecture_experiment_base import (
+    parse_max_training_time_argument,
+    run_experiment,
+)
 from architecture_visualization import plot_width_depth
 
 
@@ -15,8 +18,10 @@ CONFIGURATIONS = [
 
 
 if __name__ == "__main__":
+    max_training_time_sec = parse_max_training_time_argument()
     summary_path = run_experiment(
         experiment_name=Path(__file__).stem,
         configurations=CONFIGURATIONS,
+        max_training_time_sec=max_training_time_sec,
     )
     plot_width_depth(summary_path)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import argparse
 import pickle
 import time
 from pathlib import Path
@@ -17,7 +18,9 @@ import architecture_experiment_base as base
 EXPERIMENT_NAME = Path(__file__).stem
 N_TRIALS = 100
 SEARCH_SEED = 42
-MAX_TRAINING_TIME_SEC_PER_RUN = 500
+# Set to None to run each trial until early stopping or EPOCHS.
+# A limit can also be supplied with --max-training-time.
+MAX_TRAINING_TIME_SEC_PER_RUN: float | None = None
 
 HIDDEN_WIDTHS = [16, 32, 64, 128, 256, 512]
 HIDDEN_DEPTHS = [1, 2, 3, 4, 5]
@@ -130,6 +133,7 @@ def train_model(
     configuration: dict,
     dataset: tuple,
     checkpoint_path: Path,
+    max_training_time_sec: float | None,
 ) -> tuple[dict | None, list[dict], bytes]:
     """하나의 조합을 학습하거나 시간 제한 체크포인트에서 재개한다."""
 
@@ -287,7 +291,10 @@ def train_model(
         )
 
         elapsed_time = time.perf_counter() - start_time
-        if elapsed_time >= MAX_TRAINING_TIME_SEC_PER_RUN:
+        if (
+            max_training_time_sec is not None
+            and elapsed_time >= max_training_time_sec
+        ):
             checkpoint = {
                 "configuration": configuration,
                 "network": network,
@@ -340,7 +347,12 @@ def train_model(
     return summary, history, best_network_bytes
 
 
-def run_random_search() -> None:
+def run_random_search(
+    max_training_time_sec: float | None = MAX_TRAINING_TIME_SEC_PER_RUN,
+) -> None:
+    if max_training_time_sec is not None and max_training_time_sec <= 0:
+        raise ValueError("max_training_time_sec must be positive or None")
+
     configurations = sample_configurations()
     result_dir = base.RESULTS_DIR / EXPERIMENT_NAME
     result_dir.mkdir(parents=True, exist_ok=True)
@@ -374,6 +386,10 @@ def run_random_search() -> None:
     print("\n========== RANDOM SEARCH ==========")
     print(f"Trials: {N_TRIALS}")
     print(f"Search seed: {SEARCH_SEED}")
+    if max_training_time_sec is None:
+        print("Per-trial time limit: none")
+    else:
+        print(f"Per-trial time limit: {max_training_time_sec:g} seconds")
     print("===================================")
 
     for index, configuration in enumerate(configurations, start=1):
@@ -395,6 +411,7 @@ def run_random_search() -> None:
             configuration,
             dataset,
             checkpoint_path,
+            max_training_time_sec,
         )
 
         if summary is None:
@@ -428,4 +445,18 @@ def run_random_search() -> None:
 
 
 if __name__ == "__main__":
-    run_random_search()
+    parser = argparse.ArgumentParser(
+        description="Run Fashion-MNIST random-search trials."
+    )
+    parser.add_argument(
+        "--max-training-time",
+        type=float,
+        default=MAX_TRAINING_TIME_SEC_PER_RUN,
+        metavar="SECONDS",
+        help=(
+            "Maximum seconds per trial before saving a checkpoint and moving "
+            "on. Omit this option to run without a time limit."
+        ),
+    )
+    arguments = parser.parse_args()
+    run_random_search(arguments.max_training_time)
